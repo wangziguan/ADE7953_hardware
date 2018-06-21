@@ -74,6 +74,7 @@ uint8_t cmd3=0x03;
 uint8_t end1=0xfe;
 
 uint16_t cnt1;
+uint8_t rdata[1];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -135,6 +136,8 @@ int main(void)
 	
 	//__HAL_TIM_CLEAR_IT(&htim3, TIM_IT_UPDATE);
 	HAL_TIM_Base_Start_IT(&htim3);
+	
+	HAL_UART_Receive_IT(&huart1, (uint8_t *)rdata, 1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -238,12 +241,12 @@ void send2()
 
 void send3()
 {
-	HAL_UART_Transmit_DMA(&huart1, &cmd3, 1);
+	HAL_UART_Transmit(&huart1, &cmd3, 1, 0xFFFF);
 	for(uint16_t i=0; i<280; i++)
 	{
-		HAL_UART_Transmit_DMA(&huart1, samplei[i], 3);
+		HAL_UART_Transmit(&huart1, samplei[i], 3, 0xFFFF);
 	}
-	HAL_UART_Transmit_DMA(&huart1, &end1, 1);
+	HAL_UART_Transmit(&huart1, &end1, 1, 0xFFFF);
 }
 
 /**
@@ -255,7 +258,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == htim3.Instance)
     {
-			send3();
+			send1();
     }
 }
 
@@ -264,6 +267,26 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   * @param GPIO_Pin: Specifies the pins connected EXTI line
   * @retval None
   */
+
+/**
+  * @brief Rx Transfer completed callbacks
+  * @param huart: uart handle
+  * @retval None
+  */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  /* Prevent unused argument(s) compilation warning */
+  UNUSED(huart);
+   
+  /* NOTE : This function should not be modified, when the callback is needed,
+            the HAL_UART_RxCpltCallback can be implemented in the user file
+   */
+  if (rdata[0]==0x01)
+	{	
+		send3();
+	}
+}
+
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   if(GPIO_Pin == GPIO_PIN_1)

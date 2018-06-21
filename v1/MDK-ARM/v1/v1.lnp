@@ -3,7 +3,6 @@
 "v1\ade7953.o"
 "v1\main.o"
 "v1\gpio.o"
-"v1\dma.o"
 "v1\spi.o"
 "v1\tim.o"
 "v1\usart.o"
