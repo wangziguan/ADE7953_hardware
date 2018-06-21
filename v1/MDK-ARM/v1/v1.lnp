@@ -4,6 +4,7 @@
 "v1\main.o"
 "v1\gpio.o"
 "v1\spi.o"
+"v1\tim.o"
 "v1\usart.o"
 "v1\stm32f1xx_it.o"
 "v1\stm32f1xx_hal_msp.o"

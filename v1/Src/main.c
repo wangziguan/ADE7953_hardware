@@ -40,6 +40,7 @@
 #include "main.h"
 #include "stm32f1xx_hal.h"
 #include "spi.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -51,7 +52,28 @@
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-uint8_t rdata[0x100];
+uint8_t irqstata[4];
+
+uint8_t v[4];
+uint8_t ia[4];
+uint8_t awatt[4];
+uint8_t avar[4];
+uint8_t ava[4];
+uint8_t pfa[2];
+uint8_t period[2];
+
+uint8_t aenergya[4];
+uint8_t renergya[4];
+uint8_t apenergya[4];
+
+uint8_t samplei[280][3];
+
+uint8_t cmd1=0x01;
+uint8_t cmd2=0x02;
+uint8_t cmd3=0x03;
+uint8_t end1=0xfe;
+
+uint16_t cnt1;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -97,28 +119,22 @@ int main(void)
   MX_GPIO_Init();
   MX_SPI1_Init();
   MX_USART1_UART_Init();
-	
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 	ADE7953CommuCfg();	//Pull Down SPI_CS
-	ADE7953Reset();			//RESET ADE7953
-	HAL_Delay(100);			//Delay to RESET complete
-	ADE7953SPILock();		//SPILOCK
 	HAL_Delay(1);
+	ADE7953Reset();			//RESET ADE7953
+	HAL_Delay(100);			//Delay to RESET complete	
+	ADE7953SPILock();		//SPILOCK
 	
-	if (BSP_ADE7953_Read(rdata, RSTIRQSTATA, 4) != ADE7953_OK)
-	{
-		_Error_Handler(__FILE__, __LINE__);
-	}	 
-	if((rdata[2]&0x10)==0x10)
-	{
-		printf("ADE7953 OK\n");
-	}	//clear reset interrupt
-
 	//For optimum performance, Register Address 0x120 must be configured by the user after powering up the ADE7953.
 	//SPIWrite1Byte(0x0FE,0xAD);
 	//SPIWrite2Bytes(0x0120,0x0030);
 
 	ADE7953Cfg();
+	
+	__HAL_TIM_CLEAR_IT(&htim3, TIM_IT_UPDATE);
+	HAL_TIM_Base_Start_IT(&htim3);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -129,8 +145,7 @@ int main(void)
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */
-		printf("\n\r printf test!!!\n\r");
-		HAL_Delay(1000);
+		
   }
   /* USER CODE END 3 */
 
@@ -187,7 +202,104 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void send1()
+{
+	BSP_ADE7953_Read(v, VA, 4);
+	BSP_ADE7953_Read(ia, IA, 4);
+	BSP_ADE7953_Read(awatt, AWATT, 4);
+	BSP_ADE7953_Read(avar, AVAR, 4);
+	BSP_ADE7953_Read(ava, AVA, 4);
+	BSP_ADE7953_Read(pfa, PFA, 2);
+	BSP_ADE7953_Read(period, PERIOD, 2);
+	
+	HAL_UART_Transmit(&huart1, &cmd1, 1, 0xFFFF);
+	HAL_UART_Transmit(&huart1, v, 4, 0xFFFF);
+	HAL_UART_Transmit(&huart1, ia, 4, 0xFFFF);
+	HAL_UART_Transmit(&huart1, awatt, 4, 0xFFFF);
+	HAL_UART_Transmit(&huart1, avar, 4, 0xFFFF);
+	HAL_UART_Transmit(&huart1, ava, 4, 0xFFFF);
+	HAL_UART_Transmit(&huart1, pfa, 2, 0xFFFF);
+	HAL_UART_Transmit(&huart1, period, 2, 0xFFFF);
+	HAL_UART_Transmit(&huart1, &end1, 1, 0xFFFF);
+}
 
+void send2()
+{
+	BSP_ADE7953_Read(aenergya, AENERGYA, 4);
+	BSP_ADE7953_Read(renergya, RENERGYA, 4);
+	BSP_ADE7953_Read(apenergya, APENERGYA, 4);
+	
+	HAL_UART_Transmit(&huart1, &cmd2, 1, 0xFFFF);
+	HAL_UART_Transmit(&huart1, aenergya, 4, 0xFFFF);
+	HAL_UART_Transmit(&huart1, renergya, 4, 0xFFFF);
+	HAL_UART_Transmit(&huart1, apenergya, 4, 0xFFFF);
+	HAL_UART_Transmit(&huart1, &end1, 1, 0xFFFF);
+}
+
+void send3()
+{
+	HAL_UART_Transmit(&huart1, &cmd3, 1, 0xFFFF);
+	for(uint16_t i=0; i<280; i++)
+	{
+		HAL_UART_Transmit(&huart1, samplei[i], 3, 0xFFFF);
+	}
+	HAL_UART_Transmit(&huart1, &end1, 1, 0xFFFF);
+}
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @param  htim: TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    if (htim->Instance == htim3.Instance)
+    {
+			send1();
+    }
+}
+
+/**
+  * @brief EXTI line detection callbacks
+  * @param GPIO_Pin: Specifies the pins connected EXTI line
+  * @retval None
+  */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  if(GPIO_Pin == GPIO_PIN_1)
+  {
+		if (BSP_ADE7953_Read(irqstata, RSTIRQSTATA, 4) != ADE7953_OK)
+		{
+			_Error_Handler(__FILE__, __LINE__);
+		}	 
+		if((irqstata[2]&0x10)==0x10)
+		{
+			printf("ADE7953 OK\n");
+		}	//clear reset interrupt
+		else if((irqstata[2]&0x02)==0x02)
+		{
+			if (cnt1<280) 
+			{
+				BSP_ADE7953_Read(samplei[cnt1], 0x216, 3);
+				cnt1++;
+			}
+			else
+			{
+				SPIWrite4Bytes(IRQENA,0x140038);
+				cnt1=0;
+				send3();
+			}
+		}	//clear sample interrupt
+		else if((irqstata[2]&0x04)==0x04)
+		{
+			send2();
+		} //clear cycend interrupt
+		else if((irqstata[0]&0x08)==0x08 || (irqstata[0]&0x10)==0x10 || (irqstata[0]&0x20)==0x20)
+		{
+			send2();
+		}	//clear EOF interrupt
+  } 
+}
 /* USER CODE END 4 */
 
 /**
@@ -202,8 +314,8 @@ void _Error_Handler(char *file, int line)
   /* User can add his own implementation to report the HAL error return state */
   while(1)
   {
-		printf("\n\r printf test!!!\n\r");
-		HAL_Delay(1000);
+		printf("\n\r Something Wrong!!!\n\r");
+		return;
   }
   /* USER CODE END Error_Handler_Debug */
 }
