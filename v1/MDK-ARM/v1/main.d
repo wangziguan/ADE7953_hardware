@@ -27,6 +27,7 @@ v1\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_spi.h
 v1\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h
 v1\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h
 v1\main.o: ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
+v1\main.o: ../Inc/dma.h
 v1\main.o: ../Inc/spi.h
 v1\main.o: ../Inc/tim.h
 v1\main.o: ../Inc/usart.h

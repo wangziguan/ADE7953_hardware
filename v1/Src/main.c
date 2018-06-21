@@ -133,7 +133,7 @@ int main(void)
 
 	ADE7953Cfg();
 	
-	__HAL_TIM_CLEAR_IT(&htim3, TIM_IT_UPDATE);
+	//__HAL_TIM_CLEAR_IT(&htim3, TIM_IT_UPDATE);
 	HAL_TIM_Base_Start_IT(&htim3);
   /* USER CODE END 2 */
 
@@ -238,12 +238,12 @@ void send2()
 
 void send3()
 {
-	HAL_UART_Transmit(&huart1, &cmd3, 1, 0xFFFF);
+	HAL_UART_Transmit_DMA(&huart1, &cmd3, 1);
 	for(uint16_t i=0; i<280; i++)
 	{
-		HAL_UART_Transmit(&huart1, samplei[i], 3, 0xFFFF);
+		HAL_UART_Transmit_DMA(&huart1, samplei[i], 3);
 	}
-	HAL_UART_Transmit(&huart1, &end1, 1, 0xFFFF);
+	HAL_UART_Transmit_DMA(&huart1, &end1, 1);
 }
 
 /**
@@ -255,7 +255,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == htim3.Instance)
     {
-			send1();
+			send3();
     }
 }
 
