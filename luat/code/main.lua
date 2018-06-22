@@ -57,6 +57,9 @@ netLed.setup(true,pio.P1_1)
 
 --加载MQTT功能测试模块
 require "mqttTask"
+--加载UART功能测试模块
+require "uartTask"
+
 
 --启动系统框架
 sys.init(0, 0)

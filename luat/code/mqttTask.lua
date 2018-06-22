@@ -9,7 +9,6 @@ module(...,package.seeall)
 
 require"misc"
 require"mqtt"
---require"func"
 require"mqttOutMsg"
 require"mqttInMsg"
 

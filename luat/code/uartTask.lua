@@ -9,20 +9,25 @@ module(...,package.seeall)
 
 require"utils"
 require"pm"
+require"misc"
+require"mqttOutMsg"
 
 --[[
 功能定义：
 uart按照帧结构接收外围设备的输入，收到正确的指令后，做出相应的动作
 
 帧结构如下：
-帧头：1字节，0x01表示扫描指令，0x02表示控制GPIO命令，0x03表示控制端口命令
+帧头：1字节，0x01表示上报电压电流等，0x02表示上报电能信息，0x03表示上报波形采样信息
 帧体：字节不固定，跟帧头有关
-帧尾：1字节，固定为0xC0
+    0x01：电压四个字节，电流四个字节，有功功率四个字节，无功功率四个字节，视在功率四个字节，功率因数两个字节，周期两个字节，共24个字节
+    0x02：有功电能四个字节，无功电能四个字节，视在电能四个字节，共12个字节
+    0x03：6.99K的采样速率，一共280个采样点，每个采样点三个字节，共820个字节
+帧尾：1字节，固定为0xfe
 
-收到的指令帧头为0x01时，回复"CMD_SCANNER\r\n"给外围设备；例如接收到0x01 0xC0两个字节，就回复"CMD_SCANNER\r\n"
-收到的指令帧头为0x02时，回复"CMD_GPIO\r\n"给外围设备；例如接收到0x02 0xC0两个字节，就回复"CMD_GPIO\r\n"
-收到的指令帧头为0x03时，回复"CMD_PORT\r\n"给外围设备；例如接收到0x03 0xC0两个字节，就回复"CMD_PORT\r\n"
-收到的指令帧头为其余数据时，回复"CMD_ERROR\r\n"给外围设备；例如接收到0x04 0xC0两个字节，就回复"CMD_ERROR\r\n"
+收到的指令帧头为0x01时，用MQTT发送消息
+收到的指令帧头为0x02时，用MQTT发送消息
+收到的指令帧头为0x03时，用MQTT发送消息
+收到的指令帧头为其余数据时，打印log"CMD_ERROR"
 ]]
 
 
@@ -30,7 +35,7 @@ uart按照帧结构接收外围设备的输入，收到正确的指令后，做�
 --如果要修改为uart2，把UART_ID赋值为2即可
 local UART_ID = 1
 --帧头类型以及帧尾
-local CMD_SCANNER,CMD_GPIO,CMD_PORT,FRM_TAIL = 1,2,3,string.char(0xC0)
+local CMD_1,CMD_2,CMD_3,FRM_TAIL = 0x01,0x02,0x03,0xfe
 --串口读到的数据缓冲区
 local rdbuf = ""
 
@@ -45,21 +50,25 @@ local rdbuf = ""
 local function parse(data)
     if not data then return end    
     
-    local tail = string.find(data,string.char(0xC0))
+    local tail = string.find(data,string.char(0xfe))
     if not tail then return false,data end    
-    local cmdtyp = string.byte(data,1)
+
+    local cmdtyp = string.sub(data,1,1)
     local body,result = string.sub(data,2,tail-1)
     
-    log.info("testUart.parse",data:toHex(),cmdtyp,body:toHex())
+    log.info("uartTask.parse",data:toHex(),cmdtyp:toHex(),body:toHex())
     
-    if cmdtyp == CMD_SCANNER then
-        write("CMD_SCANNER")
-    elseif cmdtyp == CMD_GPIO then
-        write("CMD_GPIO")
-    elseif cmdtyp == CMD_PORT then
-        write("CMD_PORT")
+    if cmdtyp == CMD_1 then
+        log.info("uartTask.write","cmd1")
+        mqttOutMsg.insertMsg("ADE7953/"..misc.getImei().."/out", string.sub(data,1,tail), 1, {cb=funtion(result) log.info("mqttOutMsg.pubCb",result)})
+    elseif cmdtyp == CMD_2 then
+        log.info("uartTask.write","cmd2")
+        mqttOutMsg.insertMsg("ADE7953/"..misc.getImei().."/out", string.sub(data,1,tail), 1, {cb=funtion(result) log.info("mqttOutMsg.pubCb",result)})
+    elseif cmdtyp == CMD_3 then
+        log.info("uartTask.write","cmd3")
+        mqttOutMsg.insertMsg("ADE7953/"..misc.getImei().."/out", string.sub(data,1,tail), 1, {cb=funtion(result) log.info("mqttOutMsg.pubCb",result)})
     else
-        write("CMD_ERROR")
+        log.info("uartTask.write","cmderr")
     end
     
     return true,string.sub(data,tail+1,-1)    
@@ -106,8 +115,8 @@ local function read()
         data = uart.read(UART_ID,"*l")
         if not data or string.len(data) == 0 then break end
         --打开下面的打印会耗时
-        log.info("testUart.read bin",data)
-        log.info("testUart.read hex",data:toHex())
+        --log.info("uartTask.read bin",data)
+        --log.info("uartTask.read hex",data:toHex())
         proc(data)
     end
 end
@@ -120,18 +129,22 @@ end
 返回值：无
 ]]
 function write(s)
-    log.info("testUart.write",s)
+    log.info("uartTask.write",s)
     uart.write(UART_ID,s.."\r\n")
 end
 
 local function writeOk()
-    log.info("testUart.writeOk")
+    log.info("uartTask.writeOk")
 end
 
+function writesample()
+    log.info("uartTask.writesample")
+    uart.write(UART_ID,string.char(0x01))
+end
 
 --保持系统处于唤醒状态，此处只是为了测试需要，所以此模块没有地方调用pm.sleep("testUart")休眠，不会进入低功耗休眠状态
---在开发“要求功耗低”的项目时，一定要想办法保证pm.wake("testUart")后，在不需要串口时调用pm.sleep("testUart")
-pm.wake("testUart")
+--在开发“要求功耗低”的项目时，一定要想办法保证pm.wake("uartTask")后，在不需要串口时调用pm.sleep("uartTask")
+pm.wake("uartTask")
 --注册串口的数据接收函数，串口收到数据后，会以中断方式，调用read接口读取数据
 uart.on(UART_ID,"receive",read)
 --注册串口的数据发送通知函数

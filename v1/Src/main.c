@@ -283,7 +283,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
    */
   if (rdata[0]==0x01)
 	{	
-		send3();
+		SPIWrite4Bytes(IRQENA,0x160038);	//WSMP
+		cnt1=0;
 	}
 }
 
@@ -308,7 +309,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 			}
 			else
 			{
-				SPIWrite4Bytes(IRQENA,0x140038);
+				SPIWrite4Bytes(IRQENA,0x140038);	//Reset WSMP
 				cnt1=0;
 				send3();
 			}
